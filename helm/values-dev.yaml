@@ -1,0 +1,140 @@
+# Configuration for a Kubernetes Deployment
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Desired number of pods running
+replicaCount: 1
+
+# Docker Image to be run
+# used tag is overwritten by pipeline, latest left as placeholder
+image:
+  repository:  docker.repo1.org.com/irisforhealth/go-rest-api-template
+  # DO NOT LEAVE TAG ON LATEST FOR PROD, IT MUST BE VERSIONED
+  tag: latest
+  pullPolicy: Always
+
+# Environment Variables to be mounted into the pod
+env:
+  - name: NAMESPACE
+    value: dev
+  # - name:
+  #   value:
+
+# Expose Kubernetes Secret Keys/Values as Environment Variables
+# Key becomes environment variable name...
+# cmd: kubectl get secrets
+envFrom:
+  enabled: false
+    - name: example-secret-key
+
+# Kubernetes Secrets to be mounted as Environment Variables (can mount multiple)
+#   name: Name of Environment Variable (Secret will be mounted as corresponding value)
+#   secretName: name of the k8s secret
+#   secretKey: key name within the k8s secret
+mountedSecrets:
+  enabled: false
+    - name:
+      secretName:
+      secretKey:
+
+# Services will automatically load balance traffic between mulitple pods of the same type
+# Service Type (NodePort, ClusterIP, Load Balancer)
+### If the service is to be exposed via nodeport then network policy will have to be enabled
+# port: Port your service will listen for traffic on
+# targetPort: Port in your container that traffic will be routed to
+service:
+  type: NodePort
+  port: 8081
+  targetPort: 8081
+
+
+## Creates an ingress object that will allow external traffic to reach your service
+## Before enabling, update "path" to the path your application will be exposed on
+## ex. orggateway-dev.org.com/<your apps context path>
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/rewrite-target: /go-rest-api-template/$2
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  tls:
+    - secretName: ocg-ssl
+      hosts:
+        - orggateway-dev.org.com
+  hosts:
+    - orggateway-dev.org.com
+  # path
+  path: /go-rest-api-template(/|$)(.*)
+  servicePort: http
+  # additionalPaths:
+  # additionalPathsHigherPriority:
+
+# -- More Advanced kube options (should not be needed for basic deployments) -- #
+
+# To adjust specifc resources for a pod, remove the curly braces {} and specify
+# Limit is the maximium amount of resources that you pod will be allowed to use
+# Request is the amount of resources your pod will reserve when idle
+resources:
+  limits:
+    cpu: '1'
+    memory: 1Gi
+  requests:
+    cpu: '1'
+    memory: 1Gi
+
+## Liveness and Readiness probe values.
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-probes/
+livenessProbe:
+  enabled: true
+  # options: httpGet, tcpSocket, exec command
+  httpGet:
+    path: /go-rest-api-template/actuator/health/liveness
+    # using named-port http (i.e. 8081)
+    port: http
+  periodSeconds: 30
+  initialDelaySeconds: 100
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 5
+
+readinessProbe:
+  enabled: true
+  # options: httpGet, tcpSocket, exec command
+  httpGet:
+    path: /go-rest-api-template/actuator/health/readiness
+    # using named-port http (i.e. 8081)
+    port: http
+  initialDelaySeconds: 60
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 5
+
+## Pod Security Context
+## ref: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
+securityContext:
+  enabled: true
+  runAsUser: 1001
+  fsGroup: 1001
+
+## Configure logs
+## path for logs will default to /usr/local/<app_name>/logs unless specified
+logs:
+  path:
+
+logsPersistence:
+  enabled: false
+  ## Existing claim to use
+  #existingClaim:
+  storageClass: nas-thin
+  accessModes: ReadWriteMany
+  size: 5Gi
+
+## Network policies a network policy is require to be enable to access an application over NodePort
+networkPolicy:
+  enabled: true
+  # Ports to allow egress traffic to (can specify multiple)
+  # This is needed for any traffic leaving the namespace the pod is running in
+  egress:
+  # - port: 26257
+  #   protocol: TCP

@@ -1,0 +1,38 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: {{ template "networkPolicy.apiVersion" . }}
+kind: NetworkPolicy
+metadata:
+  name:  {{ include "chart.fullname" . }}
+  labels: 
+    app.kubernetes.io/name: {{ template "chart.fullname" . }}
+    app.kubernetes.io/chart: {{ template "chart.chart" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/service: {{ .Release.Service }}
+spec:
+  podSelector:
+    matchLabels: 
+      app.kubernetes.io/name: {{ include "chart.fullname" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  ingress:
+    - from: []      
+    - ports:
+      - port: {{ .Values.service.port }}
+        protocol: TCP
+      {{- if .Values.service.targetPort }}
+      - port : {{ .Values.service.targetPort }}
+        protocol: TCP
+      {{- end}}    
+  egress:
+  {{- if .Values.networkPolicy.egress }}
+    - ports:
+  {{- range .Values.networkPolicy.egress}}
+      - port: {{ .port }}
+        protocol: {{ .protocol }}
+  {{- end }}
+  {{- else }}
+    - {}
+  {{- end }}
+  policyTypes:
+  - Egress
+  - Ingress
+  {{- end }}
